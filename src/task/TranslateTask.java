@@ -35,7 +35,7 @@ import org.jetbrains.annotations.Nullable;
 import translate.lang.LANG;
 import translate.querier.Querier;
 import translate.trans.AbstractTranslator;
-import translate.trans.impl.GoogleTranslator;
+import translate.trans.impl.I18NTranslator;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -73,8 +73,8 @@ public class TranslateTask extends Task.Backgroundable {
                 .getBoolean(Constants.KEY_IS_OVERWRITE_EXISTING_STRING);
 
         Querier<AbstractTranslator> translator = new Querier<>();
-        GoogleTranslator googleTranslator = new GoogleTranslator();
-        translator.attach(googleTranslator);
+        I18NTranslator delegate = new I18NTranslator();
+        translator.attach(delegate);
         mWriteData.clear();
 
         for (LANG toLanguage : mLanguages) {
@@ -103,7 +103,7 @@ public class TranslateTask extends Task.Backgroundable {
                 translate(translator, toLanguage, androidStrings);
             });
         }
-        googleTranslator.close();
+        delegate.close();
         writeResultData(progressIndicator);
     }
 
