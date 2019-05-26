@@ -23,7 +23,9 @@ import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiManager;
 import logic.LanguageHelper;
 import module.AndroidString;
 import org.jetbrains.annotations.NotNull;
@@ -31,6 +33,8 @@ import task.GetAndroidStringTask;
 import task.TranslateTask;
 import translate.lang.LANG;
 import ui.SelectLanguageDialog;
+import ui.SelectStringDialog;
+import ui.ShowErrorsDialog;
 
 import java.util.List;
 
@@ -39,14 +43,19 @@ import java.util.List;
  */
 public class ConvertAction extends AnAction implements SelectLanguageDialog.OnClickListener {
 
-    private Project             mProject;
-    private VirtualFile         mSelectFile;
+    public static final String STRINGS_XML_PATH = "\\app\\src\\main\\res\\values\\strings.xml";
+    private Project mProject;
+    private VirtualFile mSelectFile;
     private List<AndroidString> mAndroidStrings;
+    private static String sPath;
 
     @Override
     public void actionPerformed(AnActionEvent e) {
         mProject = e.getData(CommonDataKeys.PROJECT);
-        PsiFile file = e.getData(CommonDataKeys.PSI_FILE);
+        sPath = mProject.getBaseDir().getPath() + STRINGS_XML_PATH;
+        VirtualFile virtualFile = VirtualFileManager.getInstance().findFileByUrl(String.format("file://%s", sPath));
+        PsiFile file = PsiManager.getInstance(mProject).findFile(virtualFile);
+
         GetAndroidStringTask getAndroidStringTask = new GetAndroidStringTask(mProject, "Load strings.xml...", file);
         getAndroidStringTask.setOnGetAndroidStringListener(new GetAndroidStringTask.OnGetAndroidStringListener() {
             @Override
@@ -55,8 +64,7 @@ public class ConvertAction extends AnAction implements SelectLanguageDialog.OnCl
                     Messages.showInfoMessage("strings.xml has no text to translate!", "Prompt");
                     return;
                 }
-                mAndroidStrings = list;
-                showSelectLanguageDialog();
+                showSelectStringDialog(list);
             }
 
             @Override
@@ -65,6 +73,15 @@ public class ConvertAction extends AnAction implements SelectLanguageDialog.OnCl
             }
         });
         getAndroidStringTask.queue();
+    }
+
+    private void showSelectStringDialog(List<AndroidString> list) {
+        SelectStringDialog dialog = new SelectStringDialog(mProject, list);
+        dialog.setOnConfirmListener(selected -> {
+            mAndroidStrings = selected;
+            showSelectLanguageDialog();
+        });
+        dialog.show();
     }
 
     private void showSelectLanguageDialog() {
@@ -124,7 +141,13 @@ public class ConvertAction extends AnAction implements SelectLanguageDialog.OnCl
                 mProject, "In translation...", selectedLanguage, mAndroidStrings, mSelectFile);
         translationTask.setOnTranslateListener(new TranslateTask.OnTranslateListener() {
             @Override
-            public void onTranslateSuccess() {}
+            public void onTranslateSuccess() {
+                List<String> errors = translationTask.getErrors();
+                if (!errors.isEmpty()) {
+                    ShowErrorsDialog showErrorsDialog = new ShowErrorsDialog(mProject, errors);
+                    showErrorsDialog.show();
+                }
+            }
 
             @Override
             public void onTranslateError(Throwable e) {

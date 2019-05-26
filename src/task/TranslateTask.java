@@ -37,7 +37,9 @@ import translate.querier.Querier;
 import translate.trans.AbstractTranslator;
 import translate.trans.impl.I18NTranslator;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -51,6 +53,7 @@ public class TranslateTask extends Task.Backgroundable {
     private VirtualFile mSelectFile;
     private Map<String, List<AndroidString>> mWriteData;
     private OnTranslateListener mOnTranslateListener;
+    private List<String> mErrors = new ArrayList<>();
 
     public interface OnTranslateListener {
         void onTranslateSuccess();
@@ -122,7 +125,11 @@ public class TranslateTask extends Task.Backgroundable {
 
             translator.setParams(LANG.Auto, toLanguage, androidString.getValue());
             String resultValue = translator.executeSingle();
-            writeAndroidString.add(new AndroidString(androidString.getName(), resultValue, false));
+            if (resultValue != null) {
+                writeAndroidString.add(new AndroidString(androidString.getName(), resultValue, false));
+            } else {
+                mErrors.add(toLanguage.getName() + " -- " + androidString.getName() + "(" + androidString.getValue() + ")");
+            }
         }
         mWriteData.put(toLanguage.getCode(), writeAndroidString);
     }
@@ -196,21 +203,28 @@ public class TranslateTask extends Task.Backgroundable {
     }
 
     private void write(File file, List<AndroidString> androidStrings) {
+
         ApplicationManager.getApplication().invokeLater(() -> ApplicationManager.getApplication().runWriteAction(() -> {
-            try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file, false), StandardCharsets.UTF_8))) {
-                bw.write("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-                bw.newLine();
-                bw.write("<resources>");
-                bw.newLine();
-                for (AndroidString androidString : androidStrings) {
-                    bw.write("\t<string name=\"" + androidString.getName() + "\">" + androidString.getValue() + "</string>");
-                    bw.newLine();
+            try (RandomAccessFile randomAccessFile = new RandomAccessFile(file, "rw")) {
+                long length = randomAccessFile.length();
+                boolean isNewFile = length == 0;
+                int offset = isNewFile ? 0 : "</resources>".length();
+                if (isNewFile) {
+                    randomAccessFile.write("<resources>\n".getBytes(StandardCharsets.UTF_8));
+                } else {
+                    randomAccessFile.seek(length - offset);
                 }
-                bw.write("</resources>");
-                bw.flush();
-            } catch (IOException e) {
+                for (AndroidString androidString : androidStrings) {
+                    randomAccessFile.writeChars("");
+                    String value = "\t<string name=\"" + androidString.getName() + "\">" + androidString.getValue() + "</string>";
+                    randomAccessFile.write(value.getBytes(StandardCharsets.UTF_8));
+                    randomAccessFile.write("\n".getBytes(StandardCharsets.UTF_8));
+                }
+                randomAccessFile.write("</resources>".getBytes(StandardCharsets.UTF_8));
+            } catch (Exception e) {
                 e.printStackTrace();
             }
+
         }));
     }
 
@@ -255,4 +269,7 @@ public class TranslateTask extends Task.Backgroundable {
         this.mOnTranslateListener = listener;
     }
 
+    public List<String> getErrors() {
+        return mErrors;
+    }
 }
