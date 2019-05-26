@@ -16,12 +16,10 @@
 
 package ui;
 
-import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.components.JBCheckBox;
-import constant.Constants;
 import logic.LanguageHelper;
 import org.jetbrains.annotations.Nullable;
 import translate.lang.LANG;
@@ -78,18 +76,6 @@ public class SelectLanguageDialog extends DialogWrapper {
     private JComponent doCreateCenterPanel() {
         final JPanel panel = new JPanel(new BorderLayout(16, 6));
         final Container container = new Container();
-        // add overwrite existing string
-        final JBCheckBox overwriteExistingString = new JBCheckBox("Overwrite Existing String");
-        panel.add(overwriteExistingString, BorderLayout.NORTH);
-        overwriteExistingString.addItemListener(e -> {
-            int state = e.getStateChange();
-            PropertiesComponent.getInstance(mProject)
-                    .setValue(Constants.KEY_IS_OVERWRITE_EXISTING_STRING, state == ItemEvent.SELECTED);
-        });
-        boolean isOverwriteExistingString = PropertiesComponent.getInstance(mProject)
-                .getBoolean(Constants.KEY_IS_OVERWRITE_EXISTING_STRING);
-        overwriteExistingString.setSelected(isOverwriteExistingString);
-        // add language
         mSelectLanguages.clear();
         List<LANG> supportLanguages = new GoogleTranslator().getSupportLang();
         List<String> selectedLanguageCodes = LanguageHelper.getSelectedLanguageCodes(mProject);

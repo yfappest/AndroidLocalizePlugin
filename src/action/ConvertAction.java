@@ -31,12 +31,15 @@ import module.AndroidString;
 import org.jetbrains.annotations.NotNull;
 import task.GetAndroidStringTask;
 import task.TranslateTask;
+import task.WriteDataTask;
 import translate.lang.LANG;
 import ui.SelectLanguageDialog;
 import ui.SelectStringDialog;
-import ui.ShowErrorsDialog;
+import ui.ShowResultDialog;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author airsaid
@@ -90,32 +93,6 @@ public class ConvertAction extends AnAction implements SelectLanguageDialog.OnCl
         dialog.show();
     }
 
-    @Override
-    public void update(AnActionEvent e) {
-        super.update(e);
-        // The translation option is only show when strings.xml is selected.
-        mSelectFile = e.getData(CommonDataKeys.VIRTUAL_FILE);
-        boolean isSelectStringsFile = isSelectStringsFile(mSelectFile);
-        e.getPresentation().setEnabledAndVisible(isSelectStringsFile);
-    }
-
-    /**
-     * Verify that the selected file is a strings.xml file.
-     *
-     * @param file selected file
-     * @return true: indicating that the selected file is the strings.xml file.
-     */
-    private boolean isSelectStringsFile(VirtualFile file) {
-        if (file == null) return false;
-
-        VirtualFile parent = file.getParent();
-        if (parent == null) return false;
-
-        String parentName = parent.getName();
-        if (!"values".equals(parentName)) return false;
-
-        return "strings.xml".equals(file.getName());
-    }
 
     /**
      * Verify that there is a text in the strings.xml file that needs to be translated.
@@ -138,15 +115,11 @@ public class ConvertAction extends AnAction implements SelectLanguageDialog.OnCl
     public void onClickListener(List<LANG> selectedLanguage) {
         LanguageHelper.saveSelectedLanguage(mProject, selectedLanguage);
         TranslateTask translationTask = new TranslateTask(
-                mProject, "In translation...", selectedLanguage, mAndroidStrings, mSelectFile);
+                mProject, "In translation...", selectedLanguage, mAndroidStrings);
         translationTask.setOnTranslateListener(new TranslateTask.OnTranslateListener() {
             @Override
-            public void onTranslateSuccess() {
-                List<String> errors = translationTask.getErrors();
-                if (!errors.isEmpty()) {
-                    ShowErrorsDialog showErrorsDialog = new ShowErrorsDialog(mProject, errors);
-                    showErrorsDialog.show();
-                }
+            public void onTranslateSuccess(Map<String, List<AndroidString>> data) {
+                showResult(data);
             }
 
             @Override
@@ -155,6 +128,28 @@ public class ConvertAction extends AnAction implements SelectLanguageDialog.OnCl
             }
         });
         translationTask.queue();
+    }
+
+    private void showResult(Map<String, List<AndroidString>> data) {
+        ShowResultDialog showResultDialog = new ShowResultDialog(mProject, data);
+        showResultDialog.setActionClickListener(new ShowResultDialog.ActionClickListener() {
+            @Override
+            public void onWriteAll(Map<String, List<AndroidString>> list) {
+                WriteDataTask writeDataTask = new WriteDataTask(mProject, "", list);
+                writeDataTask.queue();
+            }
+
+            @Override
+            public void onWrite(String key, List<AndroidString> androidStrings) {
+                WriteDataTask writeDataTask = new WriteDataTask(mProject, "", new HashMap<String, List<AndroidString>>() {
+                    {
+                        put(key, androidStrings);
+                    }
+                });
+                writeDataTask.queue();
+            }
+        });
+        showResultDialog.show();
     }
 
 }

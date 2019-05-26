@@ -27,6 +27,5 @@ public interface Constants {
 
     String KEY_SELECTED_LANGUAGES = PLUGIN_ID.concat(".selected_languages");
 
-    String KEY_IS_OVERWRITE_EXISTING_STRING = PLUGIN_ID.concat(".is_overwrite_existing_string");
 
 }

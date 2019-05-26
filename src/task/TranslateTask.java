@@ -16,18 +16,10 @@
 
 package task;
 
-import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.LocalFileSystem;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
-import constant.Constants;
-import logic.ParseStringXml;
 import module.AndroidString;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
@@ -37,11 +29,10 @@ import translate.querier.Querier;
 import translate.trans.AbstractTranslator;
 import translate.trans.impl.I18NTranslator;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author airsaid
@@ -50,30 +41,26 @@ public class TranslateTask extends Task.Backgroundable {
 
     private List<LANG> mLanguages;
     private List<AndroidString> mAndroidStrings;
-    private VirtualFile mSelectFile;
     private Map<String, List<AndroidString>> mWriteData;
     private OnTranslateListener mOnTranslateListener;
     private List<String> mErrors = new ArrayList<>();
 
     public interface OnTranslateListener {
-        void onTranslateSuccess();
+        void onTranslateSuccess(Map<String, List<AndroidString>> data );
 
         void onTranslateError(Throwable e);
     }
 
     public TranslateTask(@Nullable Project project, @Nls @NotNull String title, List<LANG> languages,
-                         List<AndroidString> androidStrings, VirtualFile selectFile) {
+                         List<AndroidString> androidStrings) {
         super(project, title);
         this.mLanguages = languages;
         this.mAndroidStrings = androidStrings;
-        this.mSelectFile = selectFile;
         this.mWriteData = new HashMap<>();
     }
 
     @Override
     public void run(@NotNull ProgressIndicator progressIndicator) {
-        boolean isOverwriteExistingString = PropertiesComponent.getInstance(myProject)
-                .getBoolean(Constants.KEY_IS_OVERWRITE_EXISTING_STRING);
 
         Querier<AbstractTranslator> translator = new Querier<>();
         I18NTranslator delegate = new I18NTranslator();
@@ -82,159 +69,25 @@ public class TranslateTask extends Task.Backgroundable {
 
         for (LANG toLanguage : mLanguages) {
             progressIndicator.setText("Translating in the " + toLanguage.getEnglishName() + " language...");
-
-            if (isOverwriteExistingString) {
-                translate(translator, toLanguage, null);
-                continue;
-            }
-
-            ApplicationManager.getApplication().runReadAction(() -> {
-                VirtualFile virtualFile = getVirtualFile(toLanguage);
-
-                if (virtualFile == null) {
-                    translate(translator, toLanguage, null);
-                    return;
-                }
-
-                PsiFile psiFile = PsiManager.getInstance(myProject).findFile(virtualFile);
-                if (psiFile == null) {
-                    translate(translator, toLanguage, null);
-                    return;
-                }
-
-                List<AndroidString> androidStrings = ParseStringXml.parse(progressIndicator, psiFile);
-                translate(translator, toLanguage, androidStrings);
-            });
+            ApplicationManager.getApplication().runReadAction(() -> translate(translator, toLanguage));
         }
         delegate.close();
-        writeResultData(progressIndicator);
     }
 
-    private void translate(Querier<AbstractTranslator> translator, LANG toLanguage, @Nullable List<AndroidString> list) {
+    private void translate(Querier<AbstractTranslator> translator, LANG toLanguage) {
         List<AndroidString> writeAndroidString = new ArrayList<>();
         for (AndroidString androidString : mAndroidStrings) {
             if (!androidString.isTranslatable()) {
                 continue;
             }
-
-            if (list != null && list.contains(androidString)) {
-                writeAndroidString.add(new AndroidString(
-                        androidString.getName(), list.get(list.indexOf(androidString)).getValue(), false));
-                continue;
-            }
-
             translator.setParams(LANG.Auto, toLanguage, androidString.getValue());
             String resultValue = translator.executeSingle();
-            if (resultValue != null) {
-                writeAndroidString.add(new AndroidString(androidString.getName(), resultValue, false));
-            } else {
-                mErrors.add(toLanguage.getName() + " -- " + androidString.getName() + "(" + androidString.getValue() + ")");
-            }
+            writeAndroidString.add(new AndroidString(androidString.getName(), resultValue, false));
         }
         mWriteData.put(toLanguage.getCode(), writeAndroidString);
     }
 
-    private void writeResultData(ProgressIndicator progressIndicator) {
-        if (mWriteData == null) {
-            translateError(new IllegalArgumentException("No translate data."));
-            return;
-        }
 
-        Set<String> keySet = mWriteData.keySet();
-        for (String key : keySet) {
-            File writeFile = getWriteFileForCode(key);
-            progressIndicator.setText("Write to " + writeFile.getParentFile().getName() + " data...");
-            write(writeFile, mWriteData.get(key));
-            refreshAndOpenFile(writeFile);
-        }
-    }
-
-    private VirtualFile getVirtualFile(LANG lang) {
-        File file = getStringFile(lang.getCode());
-        return LocalFileSystem.getInstance().findFileByIoFile(file);
-    }
-
-    private File getStringFile(String langCode) {
-        return getStringFile(langCode, false);
-    }
-
-    private File getStringFile(String langCode, boolean mkdirs) {
-        String parentPath = mSelectFile.getParent().getParent().getPath();
-        File stringFile;
-        if (mkdirs) {
-            File parentFile = new File(parentPath, getDirNameForCode(langCode));
-            if (!parentFile.exists()) {
-                parentFile.mkdirs();
-            }
-            stringFile = new File(parentFile, "strings.xml");
-            if (!stringFile.exists()) {
-                try {
-                    stringFile.createNewFile();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        } else {
-            stringFile = new File(parentPath.concat(File.separator).concat(getDirNameForCode(langCode)), "strings.xml");
-        }
-        return stringFile;
-    }
-
-    private File getWriteFileForCode(String langCode) {
-        return getStringFile(langCode, true);
-    }
-
-    private String getDirNameForCode(String langCode) {
-        String suffix;
-        if (langCode.equals(LANG.ChineseSimplified.getCode())) {
-            suffix = "zh-rCN";
-        } else if (langCode.equals(LANG.ChineseTraditional.getCode())) {
-            suffix = "zh-rTW";
-        } else if (langCode.equals(LANG.Filipino.getCode())) {
-            suffix = "fil";
-        } else if (langCode.equals(LANG.Indonesian.getCode())) {
-            suffix = "in-rID";
-        } else if (langCode.equals(LANG.Javanese.getCode())) {
-            suffix = "jv";
-        } else {
-            suffix = langCode;
-        }
-        return "values-".concat(suffix);
-    }
-
-    private void write(File file, List<AndroidString> androidStrings) {
-
-        ApplicationManager.getApplication().invokeLater(() -> ApplicationManager.getApplication().runWriteAction(() -> {
-            try (RandomAccessFile randomAccessFile = new RandomAccessFile(file, "rw")) {
-                long length = randomAccessFile.length();
-                boolean isNewFile = length == 0;
-                int offset = isNewFile ? 0 : "</resources>".length();
-                if (isNewFile) {
-                    randomAccessFile.write("<resources>\n".getBytes(StandardCharsets.UTF_8));
-                } else {
-                    randomAccessFile.seek(length - offset);
-                }
-                for (AndroidString androidString : androidStrings) {
-                    randomAccessFile.writeChars("");
-                    String value = "\t<string name=\"" + androidString.getName() + "\">" + androidString.getValue() + "</string>";
-                    randomAccessFile.write(value.getBytes(StandardCharsets.UTF_8));
-                    randomAccessFile.write("\n".getBytes(StandardCharsets.UTF_8));
-                }
-                randomAccessFile.write("</resources>".getBytes(StandardCharsets.UTF_8));
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-        }));
-    }
-
-    private void refreshAndOpenFile(File file) {
-        VirtualFile virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file);
-        if (virtualFile != null) {
-            ApplicationManager.getApplication().invokeLater(() ->
-                    FileEditorManager.getInstance(myProject).openFile(virtualFile, true));
-        }
-    }
 
     @Override
     public void onSuccess() {
@@ -250,7 +103,7 @@ public class TranslateTask extends Task.Backgroundable {
 
     private void translateSuccess() {
         if (mOnTranslateListener != null) {
-            mOnTranslateListener.onTranslateSuccess();
+            mOnTranslateListener.onTranslateSuccess(mWriteData);
         }
     }
 
