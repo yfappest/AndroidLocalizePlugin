@@ -24,6 +24,7 @@ import logic.LanguageHelper;
 import org.jetbrains.annotations.Nullable;
 import translate.lang.LANG;
 import translate.trans.impl.GoogleTranslator;
+import translate.trans.impl.I18NTranslator;
 
 import javax.swing.*;
 import java.awt.*;
@@ -77,7 +78,7 @@ public class SelectLanguageDialog extends DialogWrapper {
         final JPanel panel = new JPanel(new BorderLayout(16, 6));
         final Container container = new Container();
         mSelectLanguages.clear();
-        List<LANG> supportLanguages = new GoogleTranslator().getSupportLang();
+        List<LANG> supportLanguages = new I18NTranslator().getSupportLang();
         List<String> selectedLanguageCodes = LanguageHelper.getSelectedLanguageCodes(mProject);
         // sort by country code, easy to find
         supportLanguages.sort(new CountryCodeComparator());

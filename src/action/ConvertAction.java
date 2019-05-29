@@ -46,7 +46,7 @@ import java.util.Map;
  */
 public class ConvertAction extends AnAction implements SelectLanguageDialog.OnClickListener {
 
-    public static final String STRINGS_XML_PATH = "\\app\\src\\main\\res\\values\\strings.xml";
+    public static final String STRINGS_XML_PATH = "/TickTick/src/main/res/values/strings.xml";
     private Project mProject;
     private VirtualFile mSelectFile;
     private List<AndroidString> mAndroidStrings;

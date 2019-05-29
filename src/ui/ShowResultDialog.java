@@ -5,11 +5,14 @@ import com.intellij.openapi.ui.DialogWrapper;
 import module.AndroidString;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import translate.lang.LANG;
+import translate.trans.impl.I18NTranslator;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -21,6 +24,7 @@ public class ShowResultDialog extends DialogWrapper {
     private List<AndroidString> mSelected = new ArrayList<>();
     private ActionClickListener mActionClickListener;
     private JPanel mPanel;
+    private Map<String, LANG> langMap = new HashMap<>();
 
     public interface ActionClickListener {
         void onWriteAll(Map<String, List<AndroidString>> data);
@@ -36,6 +40,12 @@ public class ShowResultDialog extends DialogWrapper {
         setResizable(true);
         setOKButtonText("全部写入");
         setCancelButtonText("取消");
+
+        List<LANG> supportLanguages = new I18NTranslator().getSupportLang();
+
+        for (LANG lang : supportLanguages) {
+            langMap.put(lang.getCode(), lang);
+        }
         init();
     }
 
@@ -51,7 +61,8 @@ public class ShowResultDialog extends DialogWrapper {
         mPanel.removeAll();
         final Container container = new Container();
         String key = mKeys.get(index);
-        setTitle(key);
+        LANG lang = langMap.get(key);
+        setTitle(String.format("%s(%s)", lang.getName(), key));
         List<AndroidString> list = mWriteData.get(key);
         if (list.isEmpty()) {
             mPanel.add(new JLabel("没有翻译好的字符串"));
@@ -80,17 +91,18 @@ public class ShowResultDialog extends DialogWrapper {
         mPanel.revalidate();
     }
 
+
     @NotNull
     @Override
-    protected JPanel createButtonsPanel(@NotNull List<JButton> buttons) {
-
+    protected JPanel createButtonsPanel(@NotNull List<? extends JButton> buttons) {
+        List list = buttons;
         JButton next = new JButton("下一个");
         next.addActionListener(e -> next());
-        buttons.add(1, next);
+        list.add(1, next);
 
         JButton write = new JButton("写入");
         write.addActionListener(e -> write());
-        buttons.add(2, write);
+        list.add(2, write);
         return super.createButtonsPanel(buttons);
     }
 
@@ -99,9 +111,9 @@ public class ShowResultDialog extends DialogWrapper {
         mActionClickListener.onWrite(key, mSelected);
         mWriteData.remove(key);
         mKeys.remove(index);
-        if(mKeys.isEmpty()){
+        if (mKeys.isEmpty()) {
             dispose();
-        }else {
+        } else {
             setupPanel();
         }
     }

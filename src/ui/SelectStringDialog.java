@@ -16,14 +16,16 @@ import java.util.List;
 
 public class SelectStringDialog extends DialogWrapper {
 
+    private static final int ITEM_COUNT = 100;
     private final Project mProject;
     private List<AndroidString> mAndroidStrings;
     private List<AndroidString> mSelected = new ArrayList<>();
     private OnConfirmListener mOnConfirmListener;
+    private int page;
+    private JPanel mPanel;
 
 
-
-    public interface OnConfirmListener{
+    public interface OnConfirmListener {
         void onConfirm(List<AndroidString> selected);
     }
 
@@ -39,26 +41,49 @@ public class SelectStringDialog extends DialogWrapper {
     @Nullable
     @Override
     protected JComponent createCenterPanel() {
-        final JPanel panel = new JPanel(new BorderLayout(16, 6));
-        final Container container = new Container();
-        java.util.List<LANG> supportLanguages = new I18NTranslator().getSupportLang();
-        container.setLayout(new GridLayout(supportLanguages.size() / 4, 4));
+        mPanel = new JPanel(new BorderLayout(16, 6));
+        setupPanel();
+        return mPanel;
+    }
 
-        for (AndroidString androidString : mAndroidStrings) {
+    private void setupPanel() {
+        final Container container = new Container();
+        int fromIndex = page * ITEM_COUNT;
+        List<AndroidString> androidStrings = mAndroidStrings.subList(fromIndex, fromIndex + ITEM_COUNT);
+        container.setLayout(new GridLayout(androidStrings.size() / 4, 4));
+
+        for (AndroidString androidString : androidStrings) {
             JBCheckBox checkBox = new JBCheckBox(String.format("%s (%s)", androidString.getName(), androidString.getValue()));
             container.add(checkBox);
             checkBox.addItemListener(e -> {
                 int state = e.getStateChange();
-                if(state == ItemEvent.SELECTED){
+                if (state == ItemEvent.SELECTED) {
                     mSelected.add(androidString);
-                }else {
+                } else {
                     mSelected.remove(androidString);
                 }
             });
 
         }
-        panel.add(container, BorderLayout.CENTER);
-        return panel;
+        mPanel.add(container, BorderLayout.CENTER);
+
+        JPanel pages = new JPanel();
+        pages.setLayout(new FlowLayout());
+        int pageCount = mAndroidStrings.size() / ITEM_COUNT + 1;
+        for (int i = 0; i < pageCount; i++) {
+            JButton button = new JButton(String.valueOf(i+1));
+            button.setEnabled(page != i);
+            final int p = i;
+            button.addActionListener(e->{
+                page = p;
+                mPanel.removeAll();
+                setupPanel();
+            });
+            pages.add(button);
+        }
+
+        mPanel.add(pages,BorderLayout.SOUTH);
+        mPanel.revalidate();
     }
 
     @Override

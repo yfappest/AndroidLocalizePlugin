@@ -200,21 +200,21 @@ public class Result {
 
             public static class Highlight{
 
-                @SerializedName("translations.zh")
-                private List<String> translations_zh;
+                @SerializedName("translations.en")
+                private List<String> translations_en;
 
-                public void setTranslations_zh(List<String> translations_zh) {
-                    this.translations_zh = translations_zh;
+                public void setTranslations_en(List<String> translations_zh) {
+                    this.translations_en = translations_en;
                 }
 
-                public List<String> getTranslations_zh() {
-                    return translations_zh;
+                public List<String> getTranslations_en() {
+                    return translations_en;
                 }
 
                 @Override
                 public String toString() {
                     return "Highlight{" +
-                            "translations_zh=" + translations_zh +
+                            "translations_en=" + translations_en +
                             '}';
                 }
             }

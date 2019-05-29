@@ -64,7 +64,7 @@ public class WriteDataTask extends Task.Backgroundable {
     }
 
     private File getStringFile(String langCode, boolean mkdirs) {
-        String parentPath = LocalFileSystem.getInstance().findFileByIoFile(new File("")).getParent().getParent().getPath();
+        String parentPath = myProject.getProjectFilePath()+"/TickTick_IN/src/main/res";
         File stringFile;
         if (mkdirs) {
             File parentFile = new File(parentPath, getDirNameForCode(langCode));
