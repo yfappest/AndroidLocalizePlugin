@@ -55,7 +55,7 @@ public class ConvertAction extends AnAction implements SelectLanguageDialog.OnCl
     @Override
     public void actionPerformed(AnActionEvent e) {
         mProject = e.getData(CommonDataKeys.PROJECT);
-        sPath = mProject.getBaseDir().getPath() + STRINGS_XML_PATH;
+        sPath = mProject.getBasePath() + STRINGS_XML_PATH;
         VirtualFile virtualFile = VirtualFileManager.getInstance().findFileByUrl(String.format("file://%s", sPath));
         PsiFile file = PsiManager.getInstance(mProject).findFile(virtualFile);
 
